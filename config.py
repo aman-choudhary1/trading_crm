@@ -18,6 +18,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _get_db_uri(env_var: str, default: str) -> str:
+    """Get database URI from environment variable, ensuring mysql+pymysql is used."""
+    val = os.environ.get(env_var, default)
+    if val and val.startswith("mysql://"):
+        val = val.replace("mysql://", "mysql+pymysql://", 1)
+    return val
+
+
 class BaseConfig:
     """Shared settings across all environments."""
 
@@ -59,7 +67,7 @@ class DevelopmentConfig(BaseConfig):
     """Development configuration — MySQL, debug on."""
 
     DEBUG: bool = True
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get(
+    SQLALCHEMY_DATABASE_URI: str = _get_db_uri(
         "SQLALCHEMY_DATABASE_URI",
         "mysql+pymysql://root:password@localhost:3306/trading_crm",
     )
@@ -70,7 +78,7 @@ class ProductionConfig(BaseConfig):
     """Production configuration — MySQL, debug off."""
 
     DEBUG: bool = False
-    SQLALCHEMY_DATABASE_URI: str = os.environ.get(
+    SQLALCHEMY_DATABASE_URI: str = _get_db_uri(
         "SQLALCHEMY_DATABASE_URI",
         "mysql+pymysql://root:password@localhost:3306/trading_crm_prod",
     )

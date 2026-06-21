@@ -69,6 +69,16 @@ def create_app(config_name: str | None = None) -> Flask:
     with app.app_context():
         import models  # noqa: F401 — side-effect import for metadata registration
 
+        # Run database migrations automatically at startup (except in tests)
+        if not app.config.get("TESTING", False):
+            try:
+                from flask_migrate import upgrade as flask_db_upgrade
+                logger.info("Running database migrations...")
+                flask_db_upgrade()
+                logger.info("Database migrations completed successfully.")
+            except Exception as e:
+                logger.error("Failed to run database migrations: %s", e)
+
     # ── Start background tasks (skip in testing) ──────────────────────────────
     if not app.config.get("TESTING", False):
         _start_background_tasks(app)
