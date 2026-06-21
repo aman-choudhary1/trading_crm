@@ -1,0 +1,809 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Mini Trading CRM API",
+    "version": "1.0.0",
+    "description": "A Flask-based backend CRM for trading operations, incorporating MetaTrader 5 integrations, trade synchronization, commission computations, copier links, and Socket.IO real-time feeds.\n\n### Authentication\nAll `/api/*` endpoints require the `X-API-Key` header with your API key.\n\n### Live WebSocket Feeds\nThe backend serves real-time events at `ws://localhost:5000`:\n1. **/market namespace**: Subscribe to symbols using `subscribe_symbol` with `{\"symbol\": \"EURUSD\"}`. Listens to `market_data` updates emitted every ~1s.\n2. **Default namespace**: Listens to `commission_created` updates emitted automatically when commissions are calculated.\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local Development Server"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/api/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List Users (Paginated)",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number to retrieve"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "Number of users per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved user list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Create User",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email"],
+                "properties": {
+                  "name": { "type": "string", "example": "Alice Smith" },
+                  "email": { "type": "string", "format": "email", "example": "alice@example.com" },
+                  "phone": { "type": "string", "example": "+1234567890" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/User" },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation Error / Missing required fields",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already exists",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get User Detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The User ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved user profile with broker accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/User" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "broker_accounts": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/BrokerAccount"
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/broker-accounts": {
+      "get": {
+        "tags": ["Broker Accounts"],
+        "summary": "List User's Broker Accounts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The User ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved broker accounts list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BrokerAccount"
+                      }
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Broker Accounts"],
+        "summary": "Add Broker Account",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The User ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mt5_login", "mt5_password"],
+                "properties": {
+                  "mt5_login": { "type": "integer", "example": 12345678 },
+                  "mt5_password": { "type": "string", "example": "your_secure_mt5_password" },
+                  "server": { "type": "string", "default": "MetaQuotes-Demo", "example": "MetaQuotes-Demo" },
+                  "account_type": { "type": "string", "enum": ["master", "slave", "standalone"], "default": "standalone", "example": "standalone" },
+                  "test_connect": { "type": "boolean", "default": false, "description": "Trigger connection check to MT5 server (Windows only)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Broker account created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/BrokerAccount" },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation Error / Missing required fields",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "502": {
+            "description": "MT5 Terminal Connection failed (when test_connect is true)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/broker-accounts/{id}/sync-trades": {
+      "post": {
+        "tags": ["Trades"],
+        "summary": "Trigger MT5 Trade Sync",
+        "description": "Fetches new deals/history since the last synchronization timestamp, stores new closed trades, and automatically triggers commission computations.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The Broker Account ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synchronization completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "new_trades_count": { "type": "integer", "example": 5 }
+                      }
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broker Account not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "502": {
+            "description": "MT5 Connection failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/broker-accounts/{id}/trades": {
+      "get": {
+        "tags": ["Trades"],
+        "summary": "List Broker Account Trades",
+        "description": "Retrieve trades for a specific broker account, with support for status filtering, date range filtering, and pagination.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The Broker Account ID"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["open", "closed"]
+            },
+            "description": "Filter by open or closed trades"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Start ISO 8601 datetime (e.g. 2024-01-01T00:00:00)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "End ISO 8601 datetime (e.g. 2024-12-31T23:59:59)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved trades list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Trade"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broker Account not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trades/{id}/calculate-commission": {
+      "post": {
+        "tags": ["Commissions"],
+        "summary": "Calculate Commission (Idempotent)",
+        "description": "Compute and save a trade's commission. Returns the computed details. If already calculated, returns the existing record without computing it again.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The Trade ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Commission computed successfully or already calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/Commission" },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request / Trade is not closed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Trade not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/broker-accounts/{id}/commissions": {
+      "get": {
+        "tags": ["Commissions"],
+        "summary": "List Broker Account Commissions",
+        "description": "Retrieve a list of commissions generated by a broker account, complete with aggregate totals (pending, paid, and grand totals).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The Broker Account ID"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved commissions and totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "commissions": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Commission"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        },
+                        "summary": {
+                          "$ref": "#/components/schemas/CommissionSummary"
+                        }
+                      }
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broker Account not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/commissions/summary": {
+      "get": {
+        "tags": ["Commissions"],
+        "summary": "Aggregate Commissions Summary",
+        "description": "Get overall totals of commissions across all accounts, or filtered by a specific account ID.",
+        "parameters": [
+          {
+            "name": "broker_account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Filter summary to a specific broker account"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved aggregate summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "$ref": "#/components/schemas/CommissionSummary"
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/copier-links": {
+      "get": {
+        "tags": ["Trade Copier"],
+        "summary": "List Copier Links",
+        "description": "Retrieve all master→slave trade copier links registered in the system.",
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved copier links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CopierLink"
+                      }
+                    },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Trade Copier"],
+        "summary": "Create Copier Link",
+        "description": "Configure trade copy relationship between a master broker account and a slave broker account.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["master_account_id", "slave_account_id"],
+                "properties": {
+                  "master_account_id": { "type": "integer", "example": 1 },
+                  "slave_account_id": { "type": "integer", "example": 2 },
+                  "lot_multiplier": { "type": "number", "default": 1.0, "example": 0.5 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Copier link created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/CopierLink" },
+                    "error": { "type": "string", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation Error / Same account selected / Link already exists",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Master or Slave account not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "Alice Smith" },
+          "email": { "type": "string", "example": "alice@example.com" },
+          "phone": { "type": "string", "nullable": true, "example": "+1234567890" },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-21T11:45:00" }
+        }
+      },
+      "BrokerAccount": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "user_id": { "type": "integer", "example": 1 },
+          "mt5_login": { "type": "integer", "example": 12345678 },
+          "server": { "type": "string", "example": "MetaQuotes-Demo" },
+          "account_type": { "type": "string", "example": "standalone" },
+          "is_active": { "type": "boolean", "example": true },
+          "last_synced_at": { "type": "string", "format": "date-time", "nullable": true, "example": "2026-06-21T11:55:00" },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-21T11:46:00" }
+        }
+      },
+      "Trade": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "broker_account_id": { "type": "integer", "example": 1 },
+          "mt5_ticket": { "type": "integer", "example": 50012934 },
+          "symbol": { "type": "string", "example": "EURUSD" },
+          "volume": { "type": "string", "example": "0.10" },
+          "trade_type": { "type": "string", "example": "buy" },
+          "open_price": { "type": "string", "example": "1.08520" },
+          "close_price": { "type": "string", "nullable": true, "example": "1.08620" },
+          "profit": { "type": "string", "nullable": true, "example": "10.00" },
+          "open_time": { "type": "string", "format": "date-time", "example": "2026-06-21T11:00:00" },
+          "close_time": { "type": "string", "format": "date-time", "nullable": true, "example": "2026-06-21T11:15:00" },
+          "status": { "type": "string", "example": "closed" },
+          "synced_at": { "type": "string", "format": "date-time", "example": "2026-06-21T11:55:00" }
+        }
+      },
+      "Commission": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "trade_id": { "type": "integer", "example": 1 },
+          "broker_account_id": { "type": "integer", "example": 1 },
+          "volume": { "type": "string", "example": "0.10" },
+          "rate_per_lot": { "type": "string", "example": "5.00" },
+          "amount": { "type": "string", "example": "0.50" },
+          "status": { "type": "string", "example": "pending" },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-21T11:55:05" }
+        }
+      },
+      "CopierLink": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "master_account_id": { "type": "integer", "example": 1 },
+          "slave_account_id": { "type": "integer", "example": 2 },
+          "lot_multiplier": { "type": "string", "example": "0.50" },
+          "is_active": { "type": "boolean", "example": true },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-21T12:00:00" }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "example": 1 },
+          "per_page": { "type": "integer", "example": 20 },
+          "total": { "type": "integer", "example": 45 },
+          "pages": { "type": "integer", "example": 3 }
+        }
+      },
+      "CommissionSummary": {
+        "type": "object",
+        "properties": {
+          "pending_total": { "type": "string", "example": "150.00" },
+          "paid_total": { "type": "string", "example": "350.00" },
+          "grand_total": { "type": "string", "example": "500.00" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "data": { "type": "object", "nullable": true, "example": null },
+          "error": { "type": "string", "example": "Detailed error message explanation" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+# Mini Trading CRM Backend — Requirements
+# Python 3.11+
+
+# Web Framework
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-SocketIO==5.3.6
+
+# Database
+PyMySQL==1.1.1
+SQLAlchemy==2.0.36
+
+# Async / WebSocket
+eventlet==0.37.0
+
+# Background Jobs
+APScheduler==3.10.4
+
+# Environment / Config
+python-dotenv==1.0.1
+
+# Encryption
+cryptography==42.0.8
+
+# MetaTrader5 (Windows only — see README for platform constraint)
+MetaTrader5==5.0.4424
+
+# HTTP utilities
+requests==2.32.3
+Werkzeug==3.0.6
+
+# Testing
+pytest==8.3.3
+pytest-flask==1.3.0
+Flask-Testing==0.8.1
+
+# Code quality (optional, not required to run)
+# flake8==7.1.1
