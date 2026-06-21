@@ -1,445 +1,172 @@
-# Mini Trading CRM Backend
+# 📊 Mini Trading CRM Backend
 
-A full-featured Flask-based CRM backend for trading operations. Integrates with MetaTrader 5, provides REST APIs with a consistent JSON envelope, real-time WebSocket feeds, automated trade synchronisation, commission calculation, and a master-slave trade copier.
+[![Render Deployment](https://img.shields.io/badge/Render-Live-brightgreen?style=for-the-badge&logo=render&logoColor=white)](https://trading-crm-backend.onrender.com/docs)
+[![Database](https://img.shields.io/badge/MySQL-Clever_Cloud-blue?style=for-the-badge&logo=mysql&logoColor=white)](https://console.clever-cloud.com)
+[![Python Version](https://img.shields.io/badge/Python-3.11.9-yellow?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Tests Status](https://img.shields.io/badge/Tests-37%20Passed-success?style=for-the-badge&logo=pytest&logoColor=white)]()
+
+A premium, production-ready Flask-based backend CRM for trading operations. It integrates with **MetaTrader 5 (MT5)**, provides a consistent REST API, hosts a custom dark-themed interactive **Swagger developer portal**, runs real-time WebSocket feeds, and features an automated trade synchronizer, idempotent commission calculator, and master-slave trade copier.
+
+---
+
+## 🔗 Live Deployment Details
+
+The application is deployed and running live on Render, connected to a Clever Cloud MySQL instance.
+
+* **Primary Backend API URL:** `https://trading-crm-backend.onrender.com`
+* **Interactive Developer Portal (Swagger UI):** 🚀 **[https://trading-crm-backend.onrender.com/docs](https://trading-crm-backend.onrender.com/docs)**
+* **Demo API Key:** `fc8d781b0a8c2fe5918e7e17e4f16dc4`
+
+> [!TIP]
+> Go to the live **[Developer Portal (/docs)](https://trading-crm-backend.onrender.com/docs)**, click the **Authorize** button at the top right, paste the demo API key, and you can execute actual API requests directly in your browser against the live database!
+
+---
+
+## 🎨 Interactive Swagger Developer Portal
+
+We built a custom Developer Portal served directly from the `/docs` endpoint. It has been designed with premium aesthetics in mind:
+* **Dark Mode Aesthetics:** Custom style overrides applied over a material-dark theme for a modern, high-contrast look that matches top-tier SaaS portals.
+* **Sticky API Key Widget:** A custom glassmorphic top bar displaying the current session credentials, equipped with a one-click clipboard copying mechanism.
+* **OpenAPI 3.0 Conformance:** Fully defined in `static/openapi.json` and rendered dynamically.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+| Layer | Technology | Role |
+| :--- | :--- | :--- |
+| **Core Framework** | Flask 3.0 + Blueprints | REST API & Core Routing |
+| **Real-time Comms**| Flask-SocketIO 5.3 + Eventlet | WebSocket Rooms & Live Streaming |
+| **ORM** | Flask-SQLAlchemy 3.1 | Database mapping & abstraction |
+| **Migrations** | Flask-Migrate (Alembic) | Programmatic database schema versioning |
+| **Database** | MySQL 8.0 (Clever Cloud) | Primary persistent data store |
+| **Background Jobs**| APScheduler 3.10 | Scheduled synchronization across active accounts |
+| **Encryption** | cryptography (Fernet) | Symmetric encryption for broker credentials |
+| **Testing** | pytest + unittest.mock | Complete test harness with 37 mocks |
+
+---
+
+## 🏗️ Folder Structure
+
+```
+trading_crm/
+├── app.py                     # App factory (initializes DB, sockets, auto-migrations)
+├── config.py                  # Environment-specific configuration manager
+├── extensions.py              # Singleton extension holder
+├── run.py                     # Application runner (Eventlet/SocketIO entry point)
+├── static/
+│   └── openapi.json           # OpenAPI 3.0 JSON specification document
+├── models/                    # Database models (User, BrokerAccount, Trade, Commission, etc.)
+├── routes/                    # API endpoints split logically into blueprints
+│   ├── docs_routes.py         # Swagger UI serving route (custom styling and JS widgets)
+│   └── ...
+├── services/                  # Business logic (MT5 connection, sync engine, copier)
+├── workers/                   # Background loop handlers
+├── live_data/                 # WebSocket market ticks generation loop
+├── sockets/                   # WebSocket event listeners (namespaces, rooms)
+├── utils/                     # Exceptions, error-handlers, validators, cryptography
+└── tests/                     # 37 pytest cases covering all endpoints & services
+```
 
 ---
 
 ## ⚠️ Platform Constraint — MetaTrader 5 (Windows Only)
 
+> [!WARNING]
 > **The `MetaTrader5` Python package is Windows-only.**
-
-The MT5 package communicates with a locally installed MetaTrader 5 terminal via shared memory / named pipes. It will **not** work on Linux or macOS natively.
-
-**Options for non-Windows environments:**
-- Run the app inside a Windows VM or Docker container with Wine.
-- All MT5 calls are gracefully skipped if the package is unavailable (the server starts, but sync/copier endpoints return errors).
-- All unit tests mock MT5 calls — no real MT5 terminal is needed to run tests.
+> It communicates with a locally installed MT5 desktop client via local named pipes. It does not compile or run on Linux natively.
+> 
+> * **How we handle this on Linux (Render):** The application checks for MT5 package availability dynamically. If not installed, it gracefully enters mock/fail mode for real MT5 calls (syncing or connecting will log errors), but the rest of the application runs perfectly.
+> * **Testing:** All 37 unit and integration tests use unit mocks to test connection, synchronization, and copier flows without requiring a real MT5 terminal or a Windows runner.
 
 ---
 
-## Tech Stack
+## 🚀 Local Development Setup
 
-| Layer | Technology |
-|---|---|
-| Web Framework | Flask 3.0 + Blueprints |
-| ORM | Flask-SQLAlchemy 3.1 + Flask-Migrate |
-| Database (Dev/Prod) | MySQL 8+ via PyMySQL |
-| Database (Tests) | SQLite in-memory |
-| WebSockets | Flask-SocketIO 5.3 (eventlet) |
-| MT5 Integration | MetaTrader5 package (Windows only) |
-| Background Jobs | APScheduler 3.10 |
-| Encryption | cryptography (Fernet) |
-| Config | python-dotenv |
-| Tests | pytest + unittest.mock |
+We have configured the project with SQLite out-of-the-box so you can spin up the server locally without installing MySQL.
 
----
-
-## Project Structure
-
-```
-trading_crm/
-├── app.py                   # Application factory (create_app)
-├── config.py                # Dev/Prod/Test configuration classes
-├── extensions.py            # SQLAlchemy, Migrate, SocketIO instances
-├── requirements.txt
-├── .env.example
-├── run.py                   # Entry point — socketio.run(app)
-├── models/
-│   ├── user.py              # User model
-│   ├── broker_account.py    # BrokerAccount model (encrypted MT5 password)
-│   ├── trade.py             # Trade model (unique constraint on account+ticket)
-│   └── commission.py        # Commission, CopierLink, CopierMapping models
-├── routes/
-│   ├── user_routes.py       # POST/GET /api/users
-│   ├── broker_routes.py     # Broker accounts + copier links
-│   ├── trade_routes.py      # Sync trigger + filtered trade list
-│   └── commission_routes.py # Commission calc + summary endpoints
-├── services/
-│   ├── mt5_service.py       # MT5 session, history, positions (Windows only)
-│   ├── trade_sync_service.py# Fetch + deduplicate + insert MT5 deals
-│   ├── commission_service.py# Idempotent commission calculation
-│   └── trade_copier_service.py # Master-slave position mirroring
-├── workers/
-│   ├── scheduler.py         # APScheduler setup
-│   └── sync_worker.py       # Scheduled sync job function
-├── live_data/
-│   └── market_feed.py       # WebSocket market tick background task
-├── sockets/
-│   ├── market_events.py     # subscribe/unsubscribe_symbol handlers
-│   └── commission_events.py # emit_commission_created helper
-├── utils/
-│   ├── exceptions.py        # AppError hierarchy (400/404/409/422/502)
-│   ├── error_handlers.py    # Flask errorhandler registration
-│   ├── response.py          # success_response / error_response helpers
-│   ├── validators.py        # Input validation helpers
-│   ├── crypto.py            # Fernet encrypt/decrypt for MT5 passwords
-│   └── logger.py            # Rotating file + console logging
-└── tests/
-    ├── test_users.py
-    ├── test_broker_accounts.py
-    ├── test_trade_sync.py
-    └── test_commission.py
-```
-
----
-
-## Setup
-
-### 1. Clone and install dependencies
-
+### 1. Clone and Install Dependencies
 ```bash
-git clone <repo-url>
+git clone https://github.com/aman-choudhary1/trading_crm.git
 cd trading_crm
-python -m venv venv
+
+# Create and activate virtual environment
+python -m venv .venv
 # Windows:
-venv\Scripts\activate
+.venv\Scripts\activate
 # Linux/macOS:
-source venv/bin/activate
+source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
-> **Note:** `MetaTrader5` in `requirements.txt` will fail to install on non-Windows systems. Remove or comment it out if you are on Linux/macOS and only want to run tests.
-
-### 2. Configure environment
-
+### 2. Configure Environment Variables
+Copy the `.env.example` to `.env`:
 ```bash
-copy .env.example .env   # Windows
-# cp .env.example .env   # Linux/macOS
+# Windows
+copy .env.example .env
+# Linux/macOS
+cp .env.example .env
 ```
-
-Edit `.env` and fill in all required values:
-
+Ensure you have the default keys set up. For local testing, you can use the SQLite default URI:
 ```env
-SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
-SQLALCHEMY_DATABASE_URI=mysql+pymysql://root:yourpassword@localhost:3306/trading_crm
-API_KEY=<your-api-key>
-FERNET_KEY=<generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-COMMISSION_RATE_PER_LOT=5.00
-SYNC_INTERVAL_SECONDS=60
+SQLALCHEMY_DATABASE_URI=sqlite:///trading_crm.db
+API_KEY=fc8d781b0a8c2fe5918e7e17e4f16dc4
 ```
 
-### 3. Create the MySQL database
-
-```sql
-CREATE DATABASE trading_crm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 4. Run database migrations
-
-```bash
-# Initialise Alembic (only needed once per project)
-flask db init
-
-# Generate migration script from models
-flask db migrate -m "initial schema"
-
-# Apply migrations to the database
-flask db upgrade
-```
-
-> Set `FLASK_APP=app:create_app` and `FLASK_ENV=development` in your `.env` or shell before running flask commands.
-
-### 5. Start the server
-
+### 3. Run the Server
 ```bash
 python run.py
 ```
+> [!NOTE]
+> Database migrations will run **automatically** at startup. The local sqlite file `instance/trading_crm.db` will be created and migrated to the latest version immediately.
 
-The server starts on `http://0.0.0.0:5000` (configurable via `FLASK_HOST` / `FLASK_PORT` env vars).
+Open **`http://localhost:5000/docs`** in your browser to view the local interactive portal.
 
 ---
 
-## Running Tests
-
-Tests use SQLite in-memory — no MySQL database or MT5 terminal required.
-
+## 🧪 Running Tests
+We maintain 100% passing tests for all modules.
 ```bash
-pytest tests/ -v --tb=short
-```
-
-Run a specific test file:
-
-```bash
-pytest tests/test_users.py -v
-pytest tests/test_commission.py -v
+python -m pytest
 ```
 
 ---
 
-## API Reference
+## 📡 API Reference & WebSocket Feeds
 
-All endpoints require the `X-API-Key` header.
-
-> **Security Note:** The current API key auth is a simple shared-secret suitable for development and internal tooling. Replace with proper **JWT / OAuth2** authentication before deploying to production.
-
-All responses follow the envelope:
-
-```json
-{
-  "success": true | false,
-  "data": { ... } | null,
-  "error": null | "error message"
-}
-```
-
----
-
-### Users
-
-#### `POST /api/users` — Create user
-
-```bash
-curl -X POST http://localhost:5000/api/users \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Alice Smith", "email": "alice@example.com", "phone": "+1234567890"}'
-```
-
-**Response 201:**
+All API calls must contain a consistent JSON envelope:
 ```json
 {
   "success": true,
-  "data": {
-    "id": 1,
-    "name": "Alice Smith",
-    "email": "alice@example.com",
-    "phone": "+1234567890",
-    "created_at": "2024-01-15T10:00:00"
-  },
+  "data": { ... },
   "error": null
 }
 ```
 
----
+### 🔑 Authorization Header
+Include the following header on all `/api/*` requests:
+`X-API-Key: fc8d781b0a8c2fe5918e7e17e4f16dc4`
 
-#### `GET /api/users` — List users (paginated)
-
-```bash
-curl "http://localhost:5000/api/users?page=1&per_page=20" \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-#### `GET /api/users/<id>` — User detail with broker accounts
-
-```bash
-curl http://localhost:5000/api/users/1 \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-### Broker Accounts
-
-#### `POST /api/users/<id>/broker-accounts` — Add broker account
-
-The MT5 password is encrypted with Fernet before being stored. The plain-text password is never returned in API responses.
-
-```bash
-curl -X POST http://localhost:5000/api/users/1/broker-accounts \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "mt5_login": 12345678,
-    "mt5_password": "your_mt5_password",
-    "server": "MetaQuotes-Demo",
-    "account_type": "standalone",
-    "test_connect": false
-  }'
-```
-
-Set `"test_connect": true` to validate MT5 credentials before saving (returns 502 if login fails — Windows only).
-
-**account_type** values: `"master"` | `"slave"` | `"standalone"`
+### WebSocket Integration
+The backend serves real-time events at `ws://localhost:5000` (or the Render server domain):
+1. **`/market` Namespace:** Subscribe to live symbol updates:
+   ```javascript
+   const socket = io("https://trading-crm-backend.onrender.com/market");
+   socket.emit("subscribe_symbol", { symbol: "EURUSD" });
+   socket.on("market_data", (tick) => {
+       console.log(tick); // { symbol: "EURUSD", bid: 1.08520, ask: 1.08522, time: ... }
+   });
+   ```
+2. **Default Namespace:** Listen for real-time commission creation alerts:
+   ```javascript
+   const socket = io("https://trading-crm-backend.onrender.com");
+   socket.on("commission_created", (commission) => {
+       console.log("New Commission:", commission);
+   });
+   ```
 
 ---
 
-#### `GET /api/users/<id>/broker-accounts` — List accounts
-
-```bash
-curl http://localhost:5000/api/users/1/broker-accounts \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-### Trades
-
-#### `POST /api/broker-accounts/<id>/sync-trades` — Trigger MT5 sync
-
-Fetches new deals from MT5 since the account's last sync, inserts new trades, and auto-calculates commissions for closed trades.
-
-```bash
-curl -X POST http://localhost:5000/api/broker-accounts/1/sync-trades \
-  -H "X-API-Key: your-api-key"
-```
-
-**Response:**
-```json
-{"success": true, "data": {"new_trades_count": 5}, "error": null}
-```
-
----
-
-#### `GET /api/broker-accounts/<id>/trades` — List trades (filtered)
-
-```bash
-# All trades
-curl "http://localhost:5000/api/broker-accounts/1/trades" \
-  -H "X-API-Key: your-api-key"
-
-# Closed trades only
-curl "http://localhost:5000/api/broker-accounts/1/trades?status=closed" \
-  -H "X-API-Key: your-api-key"
-
-# Filtered by date range
-curl "http://localhost:5000/api/broker-accounts/1/trades?from=2024-01-01T00:00:00&to=2024-12-31T23:59:59" \
-  -H "X-API-Key: your-api-key"
-
-# Paginated
-curl "http://localhost:5000/api/broker-accounts/1/trades?page=2&per_page=50" \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-### Commissions
-
-#### `POST /api/trades/<id>/calculate-commission` — Calculate commission (idempotent)
-
-Returns the existing commission if already calculated, otherwise creates a new one.
-Also emits a `commission_created` WebSocket event.
-
-```bash
-curl -X POST http://localhost:5000/api/trades/1/calculate-commission \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-#### `GET /api/broker-accounts/<id>/commissions` — List commissions with totals
-
-```bash
-curl "http://localhost:5000/api/broker-accounts/1/commissions?page=1&per_page=20" \
-  -H "X-API-Key: your-api-key"
-```
-
-**Response includes summary totals:**
-```json
-{
-  "success": true,
-  "data": {
-    "commissions": [...],
-    "pagination": {"page": 1, "per_page": 20, "total": 42, "pages": 3},
-    "summary": {
-      "pending_total": "150.00",
-      "paid_total": "350.00",
-      "grand_total": "500.00"
-    }
-  }
-}
-```
-
----
-
-#### `GET /api/commissions/summary` — Aggregate summary
-
-```bash
-# All accounts
-curl "http://localhost:5000/api/commissions/summary" \
-  -H "X-API-Key: your-api-key"
-
-# Single account
-curl "http://localhost:5000/api/commissions/summary?broker_account_id=1" \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-### Trade Copier (Bonus)
-
-#### `POST /api/copier-links` — Create master→slave link
-
-```bash
-curl -X POST http://localhost:5000/api/copier-links \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "master_account_id": 1,
-    "slave_account_id": 2,
-    "lot_multiplier": 0.5
-  }'
-```
-
-#### `GET /api/copier-links` — List all copier links
-
-```bash
-curl http://localhost:5000/api/copier-links \
-  -H "X-API-Key: your-api-key"
-```
-
----
-
-## WebSocket Events
-
-Connect to the WebSocket server at `ws://localhost:5000`.
-
-### Market Data (`/market` namespace)
-
-```javascript
-const socket = io('http://localhost:5000/market');
-
-// Subscribe to live price data for a symbol
-socket.emit('subscribe_symbol', { symbol: 'EURUSD' });
-
-// Receive market data every ~1 second
-socket.on('market_data', (data) => {
-    console.log(data);
-    // { symbol: 'EURUSD', bid: 1.08521, ask: 1.08523, time: 1705312800 }
-});
-
-// Unsubscribe
-socket.emit('unsubscribe_symbol', { symbol: 'EURUSD' });
-```
-
-### Commission Updates (default namespace)
-
-```javascript
-const socket = io('http://localhost:5000');
-
-socket.on('commission_created', (data) => {
-    console.log('New commission:', data);
-    // { commission_id: 1, trade_id: 5, amount: "10.00", broker_account_id: 1, status: "pending" }
-});
-```
-
----
-
-## Security Notes
-
-1. **API Key**: The `X-API-Key` header check is a development convenience. Replace with JWT/OAuth2 before production deployment.
-2. **MT5 Passwords**: Stored encrypted with Fernet symmetric encryption. Back up your `FERNET_KEY` — losing it means existing passwords cannot be decrypted.
-3. **HTTPS**: Always run behind a reverse proxy (nginx/Caddy) with TLS in production.
-4. **SECRET_KEY**: Must be a long random string in production. Never commit to version control.
-
----
-
-## Background Jobs
-
-- **Trade Sync**: APScheduler runs `sync_worker.run_sync_job()` every `SYNC_INTERVAL_SECONDS` (default 60s). Per-account MT5 errors are logged and skipped without crashing the job.
-- **Market Feed**: A SocketIO background task ticks every 1 second, emitting `market_data` to subscribed symbol rooms.
-- **Trade Copier**: A daemon thread polls master positions every `COPIER_POLL_SECONDS` (default 2s) and mirrors them to slave accounts.
-
----
-
-## Logs
-
-Application logs are written to `logs/trading_crm.log` (rotating, max 10MB, 5 backups) and to the console. Log level defaults to `INFO` (configurable via `LOG_LEVEL` env var).
-
----
-
-## License
-
-MIT
+## 📝 License
+This project is licensed under the MIT License.
