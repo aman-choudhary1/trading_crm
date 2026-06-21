@@ -23,8 +23,8 @@ python-dotenv==1.0.1
 # Encryption
 cryptography==42.0.8
 
-# MetaTrader5 (Windows only — see README for platform constraint)
-MetaTrader5==5.0.4424
+# MetaTrader5 (Windows only — NOT installed on Linux/Render, app handles gracefully)
+# MetaTrader5==5.0.4424
 
 # HTTP utilities
 requests==2.32.3

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: trading-crm-backend
+    runtime: python
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "python run.py"
+    envVars:
+      - key: FLASK_ENV
+        value: development
+      - key: FLASK_HOST
+        value: 0.0.0.0
+      - key: FLASK_PORT
+        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.11.0
